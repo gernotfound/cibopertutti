@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Funzione ausiliaria per verificare l'autenticazione
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Regole per la collezione 'users'
+    match /users/{userId} {
+      // Ognuno pu leggere e scrivere solo il proprio profilo
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Regole per la collezione 'tables'
+    match /tables/{tableId} {
+      
+      // Lettura: Chiunque sia loggato pu leggere i tavoli (serve per entrare con il link d'invito)
+      allow read: if isAuthenticated();
+      
+      // Creazione: Consentita solo se chi crea imposta se stesso come 'capoUid'
+      allow create: if isAuthenticated() && request.resource.data.capoUid == request.auth.uid;
+      
+      // Aggiornamento: Consentito se sei il capo, se sei gi un partecipante, o se ti stai aggiungendo come partecipante
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.capoUid ||
+        request.auth.uid in resource.data.participants ||
+        request.auth.uid in request.resource.data.participants
+      );
+      
+      // Eliminazione: Consentita ESCLUSIVAMENTE al capo del tavolo
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.capoUid;
+    }
+  }
+}
